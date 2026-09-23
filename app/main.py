@@ -1,10 +1,39 @@
+import os
+from urllib.parse import quote_plus
 from flask import Flask, jsonify
+from dotenv import load_dotenv
+from app.extensions import db
+from app.routes.tickets import tickets_bp
 
-app = Flask(__name__)
+load_dotenv()
 
-@app.route("/health", methods=["GET"])
-def health_check():
-    return jsonify({"status": "ok", "service": "devops-ticketing-lab"}), 200
+
+def create_app():
+    app = Flask(__name__)
+
+    db_user = os.getenv("POSTGRES_USER")
+    db_password = quote_plus(os.getenv("POSTGRES_PASSWORD", ""))
+    db_name = os.getenv("POSTGRES_DB")
+    db_port = os.getenv("POSTGRES_PORT", "5432")
+
+    app.config["SQLALCHEMY_DATABASE_URI"] = (
+        f"postgresql://{db_user}:{db_password}@localhost:{db_port}/{db_name}"
+    )
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+    db.init_app(app)
+    app.register_blueprint(tickets_bp)
+
+    @app.route("/health", methods=["GET"])
+    def health_check():
+        return jsonify({"status": "ok", "service": "devops-ticketing-lab"}), 200
+
+    with app.app_context():
+        db.create_all()
+
+    return app
+
 
 if __name__ == "__main__":
+    app = create_app()
     app.run(host="0.0.0.0", port=5000, debug=True)
