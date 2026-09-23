@@ -51,7 +51,7 @@ jobs:
         run: docker compose up -d --build
 
       - name: Smoke test
-        run: curl --fail http://localhost/health
+        run: curl --fail --retry 10 --retry-delay 2 --retry-all-errors http://localhost/health
 
       - name: Clean up docker compose
         if: always()
