@@ -79,6 +79,14 @@ services:
     depends_on:
       - prometheus
 
+  webhook-receiver:
+    build: 
+      context: ./monitoring/webhook-receiver
+    container_name: ticketing-webhook-receiver
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+
 volumes:
   pgdata:
   prometheus_data:
