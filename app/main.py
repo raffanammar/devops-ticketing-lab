@@ -1,10 +1,12 @@
 import os
+import time
 from urllib.parse import quote_plus
 from flask import Flask, jsonify
 from dotenv import load_dotenv
 from app.extensions import db
 from app.routes.tickets import tickets_bp
 from prometheus_flask_exporter import PrometheusMetrics
+
 
 load_dotenv()
 
@@ -32,6 +34,10 @@ def create_app(test_config=None):
     @app.route("/health", methods=["GET"])
     def health_check():
         return jsonify({"status": "ok", "service": "devops-ticketing-lab"}), 200
+    @app.route("/simulate/slow", methods=["GET"])
+    def simulate_slow_response():
+        time.sleep(1)
+        return {"status": "slow response simulated"}, 200
 
     with app.app_context():
         db.create_all()

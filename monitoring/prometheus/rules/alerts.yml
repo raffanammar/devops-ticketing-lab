@@ -23,3 +23,18 @@ groups:
         annotations:
           summary: "High HTTP error rate detected"
           description: "More than 20% of HTTP requests have returned 4xx or 5xx responses for more than 1 minute."
+
+      - alert: HighResponseTime
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(flask_http_request_duration_seconds_bucket[1m])
+            )
+          ) > 0.5
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP response time detected"
+          description: "The 95th percentile HTTP response time has exceeded 500ms for more than 1 minute."
