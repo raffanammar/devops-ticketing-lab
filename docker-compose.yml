@@ -54,6 +54,15 @@ services:
     depends_on:
       - app
 
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: ticketing-alertmanager
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+
   grafana:
     image: grafana/grafana:11.3.1
     container_name: ticketing-grafana
