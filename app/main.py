@@ -4,6 +4,7 @@ from flask import Flask, jsonify
 from dotenv import load_dotenv
 from app.extensions import db
 from app.routes.tickets import tickets_bp
+from prometheus_flask_exporter import PrometheusMetrics
 
 load_dotenv()
 
@@ -35,9 +36,15 @@ def create_app(test_config=None):
     with app.app_context():
         db.create_all()
 
+    metrics = PrometheusMetrics(app)
+    metrics.info("app_info", "Ticketing Lab application info", version="1.0.0")
+
     return app
 
 
 if __name__ == "__main__":
     app = create_app()
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    print("=== REGISTERED ROUTES ===")
+    print(app.url_map)
+    print("==========================")
+    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
