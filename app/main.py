@@ -36,8 +36,13 @@ def create_app(test_config=None):
     with app.app_context():
         db.create_all()
 
-    metrics = PrometheusMetrics(app)
-    metrics.info("app_info", "Ticketing Lab application info", version="1.0.0")
+    if not app.config.get("TESTING"):
+        metrics = PrometheusMetrics(app)
+        metrics.info(
+            "app_info", 
+            "Ticketing Lab application info", 
+            version="1.0.0"
+        )
 
     return app
 
