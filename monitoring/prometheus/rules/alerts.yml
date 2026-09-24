@@ -1,0 +1,40 @@
+groups:
+  - name: application-alerts
+    rules:
+      - alert: ApplicationDown
+        expr: up{job="flask-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Flask application is down"
+          description: "Prometheus has been unable to scrape the Flask application for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(flask_http_request_total{status=~"4..|5.."}[1m]))
+            /
+            sum(rate(flask_http_request_total[1m]))
+          ) * 100 > 20
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP error rate detected"
+          description: "More than 20% of HTTP requests have returned 4xx or 5xx responses for more than 1 minute."
+
+      - alert: HighResponseTime
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(flask_http_request_duration_seconds_bucket[1m])
+            )
+          ) > 0.5
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP response time detected"
+          description: "The 95th percentile HTTP response time has exceeded 500ms for more than 1 minute."

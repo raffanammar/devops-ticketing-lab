@@ -47,11 +47,21 @@ services:
     restart: unless-stopped
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus_data:/prometheus
     ports:
       - "9090:9090"
     depends_on:
       - app
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: ticketing-alertmanager
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
 
   grafana:
     image: grafana/grafana:11.3.1
@@ -68,6 +78,14 @@ services:
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
+
+  webhook-receiver:
+    build: 
+      context: ./monitoring/webhook-receiver
+    container_name: ticketing-webhook-receiver
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
 
 volumes:
   pgdata:
