@@ -19,7 +19,8 @@ The environment consists of:
 - Grafana dashboards
 - Alertmanager
 - Webhook alert receiver
-- Docker Compose orchestration
+- Docker Compose orchestration (monitoring stack)
+- Kubernetes (kind) orchestration (application stack)
 - GitHub Actions CI/CD
 
 Request flow:
@@ -64,7 +65,9 @@ The `/simulate/slow` endpoint is included for lab purposes to generate controlle
 
 ## Containerized Environment
 
-The application stack is orchestrated using Docker Compose.
+The application stack runs in Docker containers. The local Kubernetes (kind) setup
+is described in [Kubernetes Deployment](#kubernetes-deployment-local-kind);
+Docker Compose is still used to orchestrate the monitoring stack below.
 
 Main services:
 
@@ -77,6 +80,130 @@ Main services:
 | Grafana          | Metrics visualization                   |
 | Alertmanager     | Alert routing and lifecycle management  |
 | Webhook Receiver | Local alert notification receiver       |
+
+## Kubernetes Deployment (Local, kind)
+
+The application stack (Nginx, Flask API, PostgreSQL) also runs on a local Kubernetes
+cluster created with [kind](https://kind.sigs.k8s.io/) (Kubernetes v1.31.0), deployed
+declaratively from manifests under `k8s/base/`.
+
+The observability stack (Prometheus, Grafana, Alertmanager) still runs on Docker Compose;
+migrating it to Kubernetes is planned as a follow-up.
+
+### Kubernetes Architecture
+
+All resources live in the namespace `ticketing-lab`.
+
+```text
+Client (kubectl port-forward 8080:80)
+  |
+  v
+Nginx Pod (Service: NodePort 30080)
+  |  reverse proxy config mounted from ConfigMap
+  v
+Flask App Pod (Deployment + Service)
+  |
+  v
+PostgreSQL Pod (Deployment + Service)
+  |
+  +--> PersistentVolumeClaim (database data)
+  +--> Secret (database credentials)
+```
+
+### Kubernetes Components
+
+| Manifest              | Kind                  | Purpose                                          |
+| --------------------- | --------------------- | ------------------------------------------------ |
+| db-secret.yaml        | Secret                | PostgreSQL credentials                           |
+| db-pvc.yaml           | PersistentVolumeClaim | Durable storage for the database                 |
+| db-deployment.yaml    | Deployment + Service  | PostgreSQL pod + cluster-internal access         |
+| app-deployment.yaml   | Deployment + Service  | Flask API pod + cluster-internal access          |
+| nginx-deployment.yaml | Deployment + Service  | Reverse proxy, exposed as NodePort 30080         |
+| nginx-config.yaml     | ConfigMap             | Nginx config, mounted via volumeMounts + subPath |
+
+### Prerequisites
+
+- kind
+- kubectl
+- Docker Desktop running
+
+### Deploy to kind
+
+Build the application image:
+
+```bash
+docker build -t devops-ticketing-lab-app:latest .
+```
+
+Create the cluster and load the image into it:
+
+```bash
+kind create cluster --name ticketing-lab
+kind load docker-image devops-ticketing-lab-app:latest --name ticketing-lab
+```
+
+The kind node runs its own container runtime and does not share images with Docker
+Desktop, so the image must be loaded into the cluster explicitly. The app deployment
+uses `imagePullPolicy: Never` so Kubernetes never attempts a registry pull.
+
+Apply all manifests:
+
+```bash
+kubectl apply -f k8s/base/
+```
+
+Watch the rollout:
+
+```bash
+kubectl get pods -n ticketing-lab
+```
+
+### Verify the Deployment
+
+Expose the app on localhost:
+
+```bash
+kubectl port-forward svc/nginx 8080:80 -n ticketing-lab
+```
+
+In a second terminal:
+
+```bash
+curl http://localhost:8080/health
+curl http://localhost:8080/tickets
+```
+
+Both endpoints must respond through the full chain (Nginx -> Flask -> PostgreSQL)
+without any change to application code or configuration.
+
+### Self-Healing Demonstration
+
+Delete the Flask app pod to simulate a sudden workload failure:
+
+```bash
+kubectl get pods -n ticketing-lab
+kubectl delete pod <app-pod-name> -n ticketing-lab --force --grace-period=0
+```
+
+The Deployment's ReplicaSet immediately reconciles actual state toward the desired
+state and starts a replacement pod:
+
+```bash
+kubectl get pods -n ticketing-lab -w
+```
+
+The API stays reachable through the same endpoint after the new pod is ready — no
+manual restart, no configuration change. `--force --grace-period=0` removes the pod
+instantly, simulating abrupt node loss rather than a graceful shutdown.
+
+### Cleanup
+
+```bash
+kind delete cluster --name ticketing-lab
+```
+
+The database PVC lives inside the kind cluster, so deleting the cluster also removes
+its data — expected behavior for a local lab cluster.
 
 ## Automated Testing
 
@@ -261,6 +388,7 @@ This project demonstrates hands-on experience with:
 - PostgreSQL
 - SQLAlchemy
 - Docker and Docker Compose
+- Kubernetes (kind, kubectl)
 - Nginx
 - Automated testing with pytest
 - GitHub Actions CI/CD
