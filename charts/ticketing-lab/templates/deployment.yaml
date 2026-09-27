@@ -28,3 +28,17 @@ spec:
           env:
             - name: DB_HOST
               value: {{ include "ticketing-lab.fullname" . }}-db
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.app.containerPort }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.app.containerPort }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
