@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ticketing-lab.fullname" . }}-nginx
+  labels:
+    {{- include "ticketing-lab.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.nginx.replicas }}
+  selector:
+    matchLabels:
+      {{- include "ticketing-lab.selectorLabels" . | nindent 6 }}
+      component: nginx
+  template:
+    metadata:
+      labels:
+        {{- include "ticketing-lab.selectorLabels" . | nindent 8 }}
+        component: nginx
+    spec:
+      containers:
+        - name: nginx
+          image: "{{ .Values.nginx.image }}"
+          ports:
+            - containerPort: {{ .Values.nginx.containerPort }}
+          volumeMounts:
+            - name: nginx-config-volume
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+      volumes:
+        - name: nginx-config-volume
+          configMap:
+            name: {{ include "ticketing-lab.fullname" . }}-nginx-config

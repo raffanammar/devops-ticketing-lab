@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ticketing-lab.fullname" . }}-db
+  labels:
+    {{- include "ticketing-lab.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.postgres.replicas }}
+  selector:
+    matchLabels:
+      {{- include "ticketing-lab.selectorLabels" . | nindent 6 }}
+      component: db
+  template:
+    metadata:
+      labels:
+        {{- include "ticketing-lab.selectorLabels" . | nindent 8 }}
+        component: db
+    spec:
+      containers:
+        - name: db
+          image: "{{ .Values.postgres.image }}"
+          ports:
+            - containerPort: {{ .Values.postgres.containerPort }}
+          envFrom:
+            - secretRef:
+                name: {{ include "ticketing-lab.fullname" . }}-db-secret
+          volumeMounts:
+            - name: db-storage
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: db-storage
+          persistentVolumeClaim:
+            claimName: {{ include "ticketing-lab.fullname" . }}-db-pvc

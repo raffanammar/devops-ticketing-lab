@@ -1,0 +1,52 @@
+# Default values for the ticketing-lab chart.
+# Mirrors the Stage 8 manifests in k8s/base/.
+
+app:
+  replicas: 1
+  image: devops-ticketing-lab-app:latest
+  imagePullPolicy: Never
+  containerPort: 5000
+  dbHost: db
+
+nginx:
+  replicas: 1
+  image: nginx:1.27-alpine
+  containerPort: 80
+  service:
+    type: NodePort
+    port: 80
+    nodePort: 30080
+  config: |
+    events {}
+
+    http {
+      upstream flask_app {
+        server {{ include "ticketing-lab.fullname" . }}-app:{{ .Values.app.containerPort }};
+      }
+
+    server {
+        listen 80;
+
+        location / {
+          proxy_pass http://flask_app;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+        }
+      }
+    }
+
+postgres:
+  replicas: 1
+  image: postgres:16-alpine
+  containerPort: 5432
+  storage: 1Gi
+
+# Lab-only credentials (parity with k8s/base/db-secret.yaml).
+# Known limitation: plaintext in values.yaml. Production-grade
+# secret handling is a documented follow-up, not in this stage's scope.
+dbCredentials:
+  user: ticketuser
+  password: "P@ssw0rd"
+  database: ticketdb

@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ticketing-lab.fullname" . }}-app
+  labels:
+    {{- include "ticketing-lab.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.app.replicas }}
+  selector:
+    matchLabels:
+      {{- include "ticketing-lab.selectorLabels" . | nindent 6 }}
+      component: app
+  template:
+    metadata:
+      labels:
+        {{- include "ticketing-lab.selectorLabels" . | nindent 8 }}
+        component: app
+    spec:
+      containers:
+        - name: app
+          image: "{{ .Values.app.image }}"
+          imagePullPolicy: {{ .Values.app.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.app.containerPort }}
+          envFrom:
+            - secretRef:
+                name: {{ include "ticketing-lab.fullname" . }}-db-secret
+          env:
+            - name: DB_HOST
+              value: {{ include "ticketing-lab.fullname" . }}-db
