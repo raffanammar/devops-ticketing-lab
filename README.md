@@ -21,6 +21,7 @@ The environment consists of:
 - Webhook alert receiver
 - Docker Compose orchestration (monitoring stack)
 - Kubernetes (kind) orchestration (application stack)
+- Helm chart packaging (`charts/ticketing-lab`)
 - GitHub Actions CI/CD
 
 Request flow:
@@ -204,6 +205,59 @@ kind delete cluster --name ticketing-lab
 
 The database PVC lives inside the kind cluster, so deleting the cluster also removes
 its data — expected behavior for a local lab cluster.
+
+## Helm Chart
+
+The Kubernetes deployment is packaged as a Helm chart under `charts/ticketing-lab`,
+which is the primary deployment method. The raw manifests under `k8s/base/` are kept
+for reference and comparison.
+
+### Chart Structure
+
+| File          | Purpose                                                           |
+| ------------- | ----------------------------------------------------------------- |
+| Chart.yaml    | Chart metadata (chart version and app version tracked separately) |
+| values.yaml   | Default configuration for all three components                    |
+| templates/    | One template per Kubernetes object (9 resources total)            |
+| \_helpers.tpl | Reusable naming and label helpers used by every template          |
+| NOTES.txt     | Post-install instructions rendered from release data              |
+
+### Key Design Decisions
+
+- **Release-scoped resource names** — all objects are named via the
+  `ticketing-lab.fullname` helper (`<release>-<component>`), so the same chart can be
+  installed twice into one cluster without name collisions. Raw manifests cannot do this.
+- **No hardcoded namespace** — the namespace is provided at install time
+  (`helm install -n`), keeping the chart portable across environments.
+- **Config-as-data** — the nginx configuration lives in `values.yaml` and is rendered
+  with the `tpl` function, so the upstream service name is derived from the release
+  name instead of being hardcoded.
+- **Secret handling** — plaintext credentials in values are encoded by the template
+  (`b64enc`); known lab-only limitation, production-grade secret management is a
+  documented follow-up.
+
+### Deploy with Helm
+
+```bash
+helm install ticketing-lab charts/ticketing-lab -n ticketing-lab
+kubectl get pods -n ticketing-lab
+kubectl port-forward svc/ticketing-lab-nginx 8080:80 -n ticketing-lab
+curl http://localhost:8080/health
+```
+
+### Release Management (Upgrade and Rollback)
+
+```bash
+helm upgrade ticketing-lab charts/ticketing-lab -n ticketing-lab --set nginx.replicas=2
+kubectl rollout status deployment/ticketing-lab-nginx -n ticketing-lab
+helm history ticketing-lab -n ticketing-lab
+helm rollback ticketing-lab 1 -n ticketing-lab
+```
+
+Each change creates an immutable revision. `helm history` shows the full audit trail,
+and `helm rollback` restores a previous revision's state in seconds. Note that rollback
+restores runtime state, not the repository: permanent configuration changes must go
+through values in Git, otherwise runtime and repository drift apart.
 
 ## Automated Testing
 
@@ -389,6 +443,7 @@ This project demonstrates hands-on experience with:
 - SQLAlchemy
 - Docker and Docker Compose
 - Kubernetes (kind, kubectl)
+- Helm (chart authoring, upgrade and rollback)
 - Nginx
 - Automated testing with pytest
 - GitHub Actions CI/CD
